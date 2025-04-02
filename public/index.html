@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>S3 File Sharing</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      line-height: 1.6;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .container {
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+    
+    .upload-area {
+      border: 2px dashed #ccc;
+      border-radius: 5px;
+      padding: 25px;
+      text-align: center;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+    
+    .upload-area:hover {
+      border-color: #999;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .btn {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    
+    .btn:hover {
+      background-color: #45a049;
+    }
+    
+    .btn:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    
+    .result-area {
+      margin-top: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background-color: #f9f9f9;
+    }
+    
+    .copy-btn {
+      background-color: #2196F3;
+      margin-left: 10px;
+    }
+    
+    .copy-btn:hover {
+      background-color: #0b7dda;
+    }
+    
+    .success-message {
+      color: #4CAF50;
+      font-weight: bold;
+    }
+    
+    .error-message {
+      color: #f44336;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Simple File Sharing Tool</h1>
+  
+  <div class="container">
+    <div class="upload-area" id="uploadArea">
+      <p>Drag & drop your file here, or click to select</p>
+      <input type="file" id="fileInput" class="hidden">
+    </div>
+    
+    <button id="uploadBtn" class="btn" disabled>Upload</button>
+    
+    <div id="resultArea" class="result-area hidden">
+      <p>Your file has been uploaded! Share using this link: <span id="linkType"></span></p>
+      <div style="display: flex; align-items: center;">
+        <input type="text" id="shareLink" readonly style="flex-grow: 1; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+        <button id="copyBtn" class="btn copy-btn">Copy</button>
+      </div>
+      <p id="copyMessage" class="success-message hidden">Link copied to clipboard!</p>
+    </div>
+    
+    <div id="errorArea" class="result-area hidden">
+      <p id="errorMessage" class="error-message"></p>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const uploadArea = document.getElementById('uploadArea');
+      const fileInput = document.getElementById('fileInput');
+      const uploadBtn = document.getElementById('uploadBtn');
+      const resultArea = document.getElementById('resultArea');
+      const shareLink = document.getElementById('shareLink');
+      const copyBtn = document.getElementById('copyBtn');
+      const copyMessage = document.getElementById('copyMessage');
+      const errorArea = document.getElementById('errorArea');
+      const errorMessage = document.getElementById('errorMessage');
+      
+      let selectedFile = null;
+      
+      // Handle drag and drop events
+      uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.style.borderColor = '#45a049';
+      });
+      
+      uploadArea.addEventListener('dragleave', () => {
+        uploadArea.style.borderColor = '#ccc';
+      });
+      
+      uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.style.borderColor = '#ccc';
+        if (e.dataTransfer.files.length > 0) {
+          selectedFile = e.dataTransfer.files[0];
+          uploadArea.innerHTML = `<p>Selected: ${selectedFile.name}</p>`;
+          uploadBtn.disabled = false;
+        }
+      });
+      
+      // Handle click on upload area
+      uploadArea.addEventListener('click', () => {
+        fileInput.click();
+      });
+      
+      // Handle file selection
+      fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+          selectedFile = fileInput.files[0];
+          uploadArea.innerHTML = `<p>Selected: ${selectedFile.name}</p>`;
+          uploadBtn.disabled = false;
+        }
+      });
+      
+      // Handle upload button click
+      uploadBtn.addEventListener('click', async () => {
+        if (!selectedFile) return;
+        
+        // Show loading state
+        uploadBtn.disabled = true;
+        uploadBtn.innerText = 'Uploading...';
+        
+        try {
+          const formData = new FormData();
+          formData.append('file', selectedFile);
+          
+          const response = await fetch('/upload', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (!response.ok) {
+            throw new Error('Upload failed. Please try again.');
+          }
+          
+          const data = await response.json();
+          
+          // Show result
+          shareLink.value = data.fileUrl;
+          document.getElementById('linkType').innerText = data.isPermanent ? 
+            '(permanent link)' : 
+            '(temporary link, valid for 24 hours)';
+          resultArea.classList.remove('hidden');
+          errorArea.classList.add('hidden');
+          uploadBtn.innerText = 'Upload';
+        } catch (error) {
+          console.error('Error:', error);
+          errorMessage.innerText = error.message || 'Something went wrong. Please try again.';
+          errorArea.classList.remove('hidden');
+          resultArea.classList.add('hidden');
+          uploadBtn.innerText = 'Upload';
+          uploadBtn.disabled = false;
+        }
+      });
+      
+      // Handle copy button click
+      copyBtn.addEventListener('click', () => {
+        shareLink.select();
+        document.execCommand('copy');
+        
+        // Show copy message
+        copyMessage.classList.remove('hidden');
+        
+        // Hide copy message after 2 seconds
+        setTimeout(() => {
+          copyMessage.classList.add('hidden');
+        }, 2000);
+      });
+    });
+  </script>
+</body>
+</html>
